@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %} — Settings{% endblock %}
+{% block heading %}Settings{% endblock %}
+
+{% block content %}
+
+<!-- ── Node Mode ───────────────────────────────────────────────── -->
+<div class="card">
+  <p class="card-label">Node Mode</p>
+  <p class="text-muted small" style="margin-bottom:1rem">
+    Choose how this node participates in the network. Changes take effect after restart.
+  </p>
+  <div class="mode-cards">
+
+    <div class="mode-card {% if 'client' in state.modes %}mode-card-active{% endif %}">
+      <div class="mode-card-icon">💻</div>
+      <div>
+        <p class="mode-card-title">Client</p>
+        <p class="mode-card-desc">
+          Routes your browser traffic through the network via SOCKS5 proxy.
+          Your traffic is anonymised — the exit node's IP is visible to websites.
+        </p>
+      </div>
+    </div>
+
+    <div class="mode-card {% if 'relay' in state.modes %}mode-card-active{% endif %}">
+      <div class="mode-card-icon">🔀</div>
+      <div>
+        <p class="mode-card-title">Relay</p>
+        <p class="mode-card-desc">
+          Forwards encrypted traffic between other nodes. You never see the
+          plaintext content — only encrypted bytes pass through.
+          <strong>Default for all nodes.</strong>
+        </p>
+      </div>
+    </div>
+
+    <div class="mode-card {% if 'exit' in state.modes %}mode-card-active{% endif %}">
+      <div class="mode-card-icon">🌐</div>
+      <div>
+        <p class="mode-card-title">Exit Node</p>
+        <p class="mode-card-desc">
+          Connects to the public internet on behalf of other users.
+          <strong>Your IP address will be visible to destination websites.</strong>
+          Only enable if you understand and accept this responsibility.
+        </p>
+        {% if 'exit' in state.modes %}
+          <span class="badge badge-warning">Exit mode active</span>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+  <p class="text-muted small" style="margin-top:.75rem">
+    To change modes, restart with the appropriate flags:
+    <code>--exit</code>, <code>--no-client</code>, <code>--no-relay</code>
+  </p>
+</div>
+
+<!-- ── Exit Policy ─────────────────────────────────────────────── -->
+{% if 'exit' in state.modes %}
+<div class="card">
+  <p class="card-label">Exit Policy</p>
+  <p class="text-muted small" style="margin-bottom:.75rem">
+    Destination ports this node will connect to on behalf of remote clients.
+    Configure with <code>--exit-policy "80,443"</code> or <code>--exit-policy "*"</code>.
+  </p>
+  <table class="kv-table">
+    <tr>
+      <td>Allowed ports</td>
+      <td id="exit-policy-val" class="mono">
+        {{ state.relay_stats.get('exit_policy', '80,443,8080,8443') if state.relay_stats else '80,443,8080,8443' }}
+      </td>
+    </tr>
+    <tr>
+      <td>Exit events</td>
+      <td id="exit-policy-events">{{ state.relay_stats.get('exit_events', 0) if state.relay_stats else 0 }}</td>
+    </tr>
+    <tr>
+      <td>Total bytes exited</td>
+      <td id="exit-policy-bytes">
+        {% if state.relay_stats %}
+          {{ state.relay_stats.get('bytes_exited', 0) | filesizeformat }}
+        {% else %}
+          0 B
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+</div>
+{% endif %}
+
+<!-- ── Proxy ───────────────────────────────────────────────────── -->
+<div class="card">
+  <p class="card-label">SOCKS5 Proxy</p>
+  <table class="kv-table">
+    <tr><td>Listen address</td><td class="mono">{{ state.socks_host }}:{{ state.socks_port }}</td></tr>
+    <tr><td>Status</td>
+      <td>
+        {% if state.socks_running %}
+          <span class="badge badge-green">Active</span>
+        {% else %}
+          <span class="badge badge-grey">Paused</span>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+</div>
+
+<!-- ── Identity ────────────────────────────────────────────────── -->
+<div class="card">
+  <p class="card-label">Node Identity</p>
+  <p class="text-muted small" style="margin-bottom:.75rem">
+    Read-only. Keys are stored at
+    <code>~/.config/ratatoskr/</code> (chmod 600).
+    Use <code>python -m ygg_tunnel keygen --force</code> to regenerate.
+  </p>
+  <table class="kv-table">
+    <tr>
+      <td>Yggdrasil address</td>
+      <td class="mono">{{ state.ygg_addr or '—' }}</td>
+    </tr>
+    <tr>
+      <td>Signing key (Ed25519)</td>
+      <td class="mono small" id="sign-key">—</td>
+    </tr>
+    <tr>
+      <td>Encryption key (X25519)</td>
+      <td class="mono small" id="enc-key">—</td>
+    </tr>
+  </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+fetch('/api/status').then(r => r.json()).then(s => {
+  // identity keys are not in AppState by default; skip if absent
+});
+</script>
+{% endblock %}

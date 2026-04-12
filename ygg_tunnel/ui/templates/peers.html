@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %} — Peers{% endblock %}
+{% block heading %}Peers{% endblock %}
+
+{% block content %}
+
+<!-- ── Fetch from remote ────────────────────────────────────────── -->
+<div class="card">
+  <p class="card-label">Discover Peers</p>
+  <form class="inline-form" id="fetch-form">
+    <input class="input" type="text" name="addr" placeholder="200:abcd::1  (Yggdrasil address)" required>
+    <input class="input input-sm" type="number" name="port" value="9052" min="1" max="65535">
+    <label class="checkbox-label">
+      <input type="checkbox" name="save" value="1" checked> Save to list
+    </label>
+    <button class="btn btn-primary" type="submit">Fetch</button>
+  </form>
+  <p class="fetch-result text-muted small" id="fetch-result"></p>
+</div>
+
+<!-- ── Known peers table ───────────────────────────────────────── -->
+<div class="card">
+  <div class="card-header-row">
+    <p class="card-label">Known Peers <span class="badge badge-grey" id="peer-count">{{ peers | length }}</span></p>
+    <button class="btn btn-sm btn-ghost" onclick="loadPeers()">↻ Refresh</button>
+  </div>
+
+  <div id="peers-table-wrap">
+    {% if peers %}
+    <table class="table" id="peers-table">
+      <thead>
+        <tr>
+          <th>Address</th>
+          <th>Modes</th>
+          <th>Port</th>
+          <th>Enc key</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in peers %}
+        <tr data-addr="{{ p.addr }}">
+          <td class="mono">{{ p.addr }}</td>
+          <td>
+            {% for m in p.modes %}
+              <span class="mode-badge mode-{{ m }}">{{ m }}</span>
+            {% endfor %}
+          </td>
+          <td>{{ p.port }}</td>
+          <td class="mono small">{{ p.pubkey_enc[:20] }}…</td>
+          <td>
+            <button class="btn btn-sm btn-danger-ghost" onclick="removePeer('{{ p.addr }}')">Remove</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted" id="no-peers-msg">No peers yet. Use the form above to discover some.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Add manually ────────────────────────────────────────────── -->
+<div class="card">
+  <p class="card-label">Add Peer Manually</p>
+  <form id="add-form" class="grid-form">
+    <div class="form-group">
+      <label>Yggdrasil Address</label>
+      <input class="input" name="addr" placeholder="200:…" required>
+    </div>
+    <div class="form-group">
+      <label>Encryption Public Key (base64)</label>
+      <input class="input" name="pubkey_enc" placeholder="X25519 public key" required>
+    </div>
+    <div class="form-group">
+      <label>Signing Public Key (base64)</label>
+      <input class="input" name="pubkey_sign" placeholder="Ed25519 verify key" required>
+    </div>
+    <div class="form-group">
+      <label>Modes</label>
+      <input class="input" name="modes" value="relay" placeholder="relay,exit">
+    </div>
+    <div class="form-group">
+      <label>Port</label>
+      <input class="input input-sm" name="port" type="number" value="9051">
+    </div>
+    <div class="form-group form-group-full">
+      <button class="btn btn-primary" type="submit">Add Peer</button>
+      <span class="add-result text-muted small" id="add-result"></span>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Fetch peers from remote ────────────────────────────────────
+document.getElementById('fetch-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch('/api/peers/fetch', { method: 'POST', body: fd });
+  const data = await res.json();
+  const el = document.getElementById('fetch-result');
+  if (data.error) {
+    el.textContent = '✗ ' + data.error;
+    el.style.color = 'var(--danger)';
+  } else {
+    el.textContent = `✓ Got ${data.fetched.length} peers${data.save ? `, ${data.new} new saved` : ''}.`;
+    el.style.color = 'var(--success)';
+    loadPeers();
+  }
+});
+
+// ── Add peer manually ─────────────────────────────────────────
+document.getElementById('add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch('/api/peers', { method: 'POST', body: fd });
+  const data = await res.json();
+  const el = document.getElementById('add-result');
+  if (data.ok) {
+    el.textContent = `✓ Added ${data.addr}`;
+    el.style.color = 'var(--success)';
+    e.target.reset();
+    loadPeers();
+  } else {
+    el.textContent = '✗ ' + (data.error || 'Unknown error');
+    el.style.color = 'var(--danger)';
+  }
+});
+
+// ── Remove peer ───────────────────────────────────────────────
+async function removePeer(addr) {
+  await fetch(`/api/peers/${encodeURIComponent(addr)}`, { method: 'DELETE' });
+  loadPeers();
+}
+
+// ── Refresh peers table ───────────────────────────────────────
+async function loadPeers() {
+  const res = await fetch('/api/peers');
+  const data = await res.json();
+  const peers = data.peers || [];
+  document.getElementById('peer-count').textContent = peers.length;
+  const wrap = document.getElementById('peers-table-wrap');
+  if (!peers.length) {
+    wrap.innerHTML = '<p class="text-muted" id="no-peers-msg">No peers yet. Use the form above to discover some.</p>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="table" id="peers-table">
+      <thead><tr><th>Address</th><th>Modes</th><th>Port</th><th>Enc key</th><th></th></tr></thead>
+      <tbody>${peers.map(p => `
+        <tr data-addr="${p.addr}">
+          <td class="mono">${p.addr}</td>
+          <td>${p.modes.map(m => `<span class="mode-badge mode-${m}">${m}</span>`).join(' ')}</td>
+          <td>${p.port}</td>
+          <td class="mono small">${p.pubkey_enc.substring(0, 20)}…</td>
+          <td><button class="btn btn-sm btn-danger-ghost" onclick="removePeer('${p.addr}')">Remove</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+</script>
+{% endblock %}

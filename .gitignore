@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Keys and secrets
+*.sign
+*.enc
+identity.*
+
+# Runtime data
+~/.config/ratatoskr/
+relay.log
+peers.json
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

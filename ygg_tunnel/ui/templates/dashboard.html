@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %} — Dashboard{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+
+{% block content %}
+
+{% if state.demo_mode %}
+<div class="demo-banner">
+  ⚡ Demo Mode — 3-hop circuit running entirely on localhost (no Yggdrasil required)
+</div>
+{% endif %}
+
+<!-- ── Status + Toggle ─────────────────────────────────────────── -->
+<div class="card-row">
+
+  <div class="card status-card" id="status-card">
+    <div class="status-orb {% if state.socks_running %}orb-on{% else %}orb-off{% endif %}" id="status-orb"></div>
+    <div class="status-text">
+      <p class="status-label" id="status-label">
+        {% if state.socks_running %}Connected{% else %}Disconnected{% endif %}
+      </p>
+      <p class="status-sub" id="status-sub">
+        {% if state.socks_running %}
+          Proxy active on {{ state.socks_host }}:{{ state.socks_port }}
+        {% else %}
+          SOCKS5 proxy is paused
+        {% endif %}
+      </p>
+    </div>
+    <button
+      class="btn {% if state.socks_running %}btn-danger{% else %}btn-primary{% endif %}"
+      id="toggle-btn"
+      onclick="toggleSocks()"
+    >
+      {% if state.socks_running %}Disconnect{% else %}Connect{% endif %}
+    </button>
+  </div>
+
+  <!-- Mode badges -->
+  <div class="card modes-card">
+    <p class="card-label">Node Modes</p>
+    <div class="mode-list">
+      {% for m in state.modes %}
+        <span class="mode-badge mode-{{ m }}">{{ m }}</span>
+      {% else %}
+        <span class="text-muted">—</span>
+      {% endfor %}
+    </div>
+    <p class="card-label" style="margin-top:1rem">Yggdrasil</p>
+    <p class="mono small" id="ygg-addr-val">
+      {{ state.ygg_addr or "Not detected" }}
+    </p>
+  </div>
+
+</div>
+
+<!-- ── Circuit ─────────────────────────────────────────────────── -->
+<div class="card">
+  <p class="card-label">Active Circuit</p>
+  <div class="circuit-row" id="circuit-row">
+    {% if state.circuit_info %}
+      {% for part in state.circuit_info.split('  ') %}
+        {% set kv = part.split('=') %}
+        {% if kv|length == 2 %}
+          <div class="hop">
+            <span class="hop-label">{{ kv[0] }}</span>
+            <span class="hop-addr mono">{{ kv[1] }}</span>
+          </div>
+          {% if not loop.last %}<span class="hop-arrow">→</span>{% endif %}
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <p class="text-muted">No circuit built yet — connect to build one.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Stats ───────────────────────────────────────────────────── -->
+<div class="card-row three-col">
+
+  <div class="card stat-card">
+    <p class="stat-value" id="stat-bytes-in">{{ state.bytes_in | filesizeformat }}</p>
+    <p class="stat-label">Bytes in</p>
+  </div>
+
+  <div class="card stat-card">
+    <p class="stat-value" id="stat-bytes-out">{{ state.bytes_out | filesizeformat }}</p>
+    <p class="stat-label">Bytes out</p>
+  </div>
+
+  <div class="card stat-card">
+    <p class="stat-value" id="stat-conns">{{ state.active_connections }}</p>
+    <p class="stat-label">Active connections</p>
+  </div>
+
+</div>
+
+<!-- ── Throughput Graph ─────────────────────────────────────────── -->
+<div class="card">
+  <p class="card-label">Throughput (last 60 s)</p>
+  <div class="chart-wrap">
+    <canvas id="throughput-chart" height="80"></canvas>
+  </div>
+</div>
+
+<!-- ── Relay Stats ──────────────────────────────────────────────── -->
+{% if state.relay_running %}
+<div class="card">
+  <p class="card-label">Relay / Exit Log</p>
+  <div class="card-row three-col" style="margin-top:.75rem">
+    <div class="stat-card-sm">
+      <p class="stat-value-sm" id="rstat-relay-events">{{ state.relay_stats.get('relay_events', 0) if state.relay_stats else 0 }}</p>
+      <p class="stat-label">Relay events</p>
+    </div>
+    <div class="stat-card-sm">
+      <p class="stat-value-sm" id="rstat-exit-events">{{ state.relay_stats.get('exit_events', 0) if state.relay_stats else 0 }}</p>
+      <p class="stat-label">Exit events</p>
+    </div>
+    <div class="stat-card-sm">
+      <p class="stat-value-sm" id="rstat-total-bytes">
+        {{ state.relay_stats.get('total_bytes', 0) | filesizeformat if state.relay_stats else '0 B' }}
+      </p>
+      <p class="stat-label">Total relayed</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Proxy setup hint ────────────────────────────────────────── -->
+<div class="card hint-card">
+  <p class="card-label">Browser Setup</p>
+  <p>Configure your browser's SOCKS5 proxy to:</p>
+  <code class="code-block">{{ state.socks_host }}:{{ state.socks_port }}</code>
+  <p class="text-muted small">
+    Firefox: Settings → Network → Manual proxy → SOCKS5 host
+    <code>{{ state.socks_host }}</code> port <code>{{ state.socks_port }}</code>
+  </p>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+// ── Throughput chart ──────────────────────────────────────────────
+const chartCtx = document.getElementById('throughput-chart').getContext('2d');
+const labels = Array.from({length: 60}, (_, i) => `${60 - i}s`).reverse();
+
+const throughputChart = new Chart(chartCtx, {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'In',
+        data: Array(60).fill(0),
+        borderColor: '#7c6fcd',
+        backgroundColor: 'rgba(124,111,205,0.12)',
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.4,
+      },
+      {
+        label: 'Out',
+        data: Array(60).fill(0),
+        borderColor: '#4ea8de',
+        backgroundColor: 'rgba(78,168,222,0.08)',
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.4,
+      },
+    ],
+  },
+  options: {
+    animation: false,
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { intersect: false, mode: 'index' },
+    plugins: {
+      legend: { labels: { color: '#aaa', boxWidth: 12 } },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${fmtBytes(ctx.parsed.y)}/s`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: '#666', maxTicksLimit: 6 },
+        grid: { color: '#2a2a2a' },
+      },
+      y: {
+        ticks: {
+          color: '#666',
+          callback: v => fmtBytes(v) + '/s',
+        },
+        grid: { color: '#2a2a2a' },
+        min: 0,
+      },
+    },
+  },
+});
+
+// ── WebSocket live stats ──────────────────────────────────────────
+const ws = new WebSocket(`ws://${location.host}/ws/stats`);
+
+ws.onmessage = (e) => {
+  const s = JSON.parse(e.data);
+
+  // Status orb + label
+  const orb = document.getElementById('status-orb');
+  const label = document.getElementById('status-label');
+  const sub = document.getElementById('status-sub');
+  const btn = document.getElementById('toggle-btn');
+  const badge = document.querySelector('.badge');
+
+  if (s.socks_running) {
+    orb.className = 'status-orb orb-on';
+    label.textContent = 'Connected';
+    sub.textContent = `Proxy active on ${s.socks_host}:${s.socks_port}`;
+    btn.textContent = 'Disconnect';
+    btn.className = 'btn btn-danger';
+    badge.textContent = 'SOCKS5 active';
+    badge.className = 'badge badge-green';
+  } else {
+    orb.className = 'status-orb orb-off';
+    label.textContent = 'Disconnected';
+    sub.textContent = 'SOCKS5 proxy is paused';
+    btn.textContent = 'Connect';
+    btn.className = 'btn btn-primary';
+    badge.textContent = 'SOCKS5 paused';
+    badge.className = 'badge badge-grey';
+  }
+
+  // Circuit
+  const cr = document.getElementById('circuit-row');
+  if (s.circuit_info) {
+    const parts = s.circuit_info.split('  ').filter(Boolean);
+    cr.innerHTML = parts.map((part, i) => {
+      const [k, v] = part.split('=');
+      const arrow = i < parts.length - 1 ? '<span class="hop-arrow">→</span>' : '';
+      return `<div class="hop"><span class="hop-label">${k}</span><span class="hop-addr mono">${v}</span></div>${arrow}`;
+    }).join('');
+  }
+
+  // Stats
+  document.getElementById('stat-bytes-in').textContent  = fmtBytes(s.bytes_in);
+  document.getElementById('stat-bytes-out').textContent = fmtBytes(s.bytes_out);
+  document.getElementById('stat-conns').textContent     = s.active_connections;
+
+  // Ygg addr
+  document.getElementById('ygg-addr-val').textContent = s.ygg_addr || 'Not detected';
+
+  // Throughput chart
+  if (s.throughput_in_history && s.throughput_out_history) {
+    throughputChart.data.datasets[0].data = s.throughput_in_history;
+    throughputChart.data.datasets[1].data = s.throughput_out_history;
+    throughputChart.update('none');
+  }
+
+  // Relay stats
+  if (s.relay_stats) {
+    const rs = s.relay_stats;
+    const re = document.getElementById('rstat-relay-events');
+    const xe = document.getElementById('rstat-exit-events');
+    const tb = document.getElementById('rstat-total-bytes');
+    if (re) re.textContent = rs.relay_events ?? 0;
+    if (xe) xe.textContent = rs.exit_events ?? 0;
+    if (tb) tb.textContent = fmtBytes(rs.total_bytes ?? 0);
+  }
+};
+
+ws.onerror = () => console.warn('Stats WebSocket error');
+
+// ── Toggle SOCKS5 ────────────────────────────────────────────────
+async function toggleSocks() {
+  const label = document.getElementById('status-label').textContent;
+  const endpoint = label === 'Connected' ? '/api/socks/pause' : '/api/socks/resume';
+  await fetch(endpoint, { method: 'POST' });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+  return `${(n / 1024 ** 3).toFixed(2)} GB`;
+}
+</script>
+{% endblock %}

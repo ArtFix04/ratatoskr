@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %} — Logs{% endblock %}
+{% block heading %}Logs{% endblock %}
+
+{% block content %}
+
+<div class="card" style="padding-bottom:0">
+  <div class="log-toolbar">
+    <div class="log-filters">
+      <button class="filter-btn active" data-level="ALL"    onclick="setFilter(this)">All</button>
+      <button class="filter-btn"        data-level="INFO"   onclick="setFilter(this)">Info</button>
+      <button class="filter-btn"        data-level="WARNING"onclick="setFilter(this)">Warn</button>
+      <button class="filter-btn"        data-level="ERROR"  onclick="setFilter(this)">Error</button>
+      <button class="filter-btn"        data-level="DEBUG"  onclick="setFilter(this)">Debug</button>
+    </div>
+    <div class="log-actions">
+      <label class="checkbox-label">
+        <input type="checkbox" id="autoscroll" checked> Auto-scroll
+      </label>
+      <button class="btn btn-sm btn-ghost" onclick="clearLog()">Clear</button>
+    </div>
+  </div>
+
+  <div class="log-viewer" id="log-viewer">
+    {% for line in log_lines %}
+    <div class="log-line log-{{ line.cls }}" data-level="{{ line.level }}">
+      <span class="log-ts">{{ line.ts }}</span>
+      <span class="log-level">{{ line.level }}</span>
+      <span class="log-name">{{ line.name }}</span>
+      <span class="log-msg">{{ line.msg }}</span>
+    </div>
+    {% else %}
+    <p class="text-muted log-empty">No log entries yet.</p>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'ALL';
+
+const logViewer = document.getElementById('log-viewer');
+
+async function fetchLogs() {
+  const res = await fetch('/api/logs');
+  if (!res.ok) return;
+  const data = await res.json();
+  renderLogs(data.lines);
+}
+
+function renderLogs(lines) {
+  const filtered = currentFilter === 'ALL'
+    ? lines
+    : lines.filter(l => l.level === currentFilter);
+
+  if (!filtered.length) {
+    logViewer.innerHTML = '<p class="text-muted log-empty">No entries for this filter.</p>';
+    return;
+  }
+
+  logViewer.innerHTML = filtered.map(l => `
+    <div class="log-line log-${l.cls}" data-level="${l.level}">
+      <span class="log-ts">${l.ts}</span>
+      <span class="log-level">${l.level}</span>
+      <span class="log-name">${l.name}</span>
+      <span class="log-msg">${escHtml(l.msg)}</span>
+    </div>`).join('');
+
+  if (document.getElementById('autoscroll').checked) {
+    logViewer.scrollTop = logViewer.scrollHeight;
+  }
+}
+
+function setFilter(btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = btn.dataset.level;
+  fetchLogs();
+}
+
+function clearLog() {
+  logViewer.innerHTML = '<p class="text-muted log-empty">Log cleared.</p>';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Poll every 2 seconds
+setInterval(fetchLogs, 2000);
+fetchLogs();
+</script>
+{% endblock %}

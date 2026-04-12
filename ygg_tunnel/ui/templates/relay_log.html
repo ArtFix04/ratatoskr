@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %} — Relay Log{% endblock %}
+{% block heading %}Relay Log{% endblock %}
+
+{% block content %}
+
+<!-- ── Summary stats ───────────────────────────────────────────── -->
+<div class="card">
+  <p class="card-label">Session Totals</p>
+  <div class="stats-row">
+    <div class="stat-card-sm">
+      <div class="stat-value-sm" id="rl-relay-events">{{ stats.get('relay_events', 0) }}</div>
+      <div class="stat-label">Relay events</div>
+    </div>
+    <div class="stat-card-sm">
+      <div class="stat-value-sm" id="rl-exit-events">{{ stats.get('exit_events', 0) }}</div>
+      <div class="stat-label">Exit events</div>
+    </div>
+    <div class="stat-card-sm">
+      <div class="stat-value-sm" id="rl-bytes-relayed">{{ stats.get('bytes_relayed', 0) | filesizeformat }}</div>
+      <div class="stat-label">Bytes relayed</div>
+    </div>
+    <div class="stat-card-sm">
+      <div class="stat-value-sm" id="rl-bytes-exited">{{ stats.get('bytes_exited', 0) | filesizeformat }}</div>
+      <div class="stat-label">Bytes exited</div>
+    </div>
+    <div class="stat-card-sm">
+      <div class="stat-value-sm" id="rl-total-bytes">{{ stats.get('total_bytes', 0) | filesizeformat }}</div>
+      <div class="stat-label">Total forwarded</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Entry table ─────────────────────────────────────────────── -->
+<div class="card" style="padding-bottom:0">
+  <div class="log-toolbar">
+    <p class="card-label" style="margin:0">Recent events (newest first)</p>
+    <div class="log-actions">
+      <button class="btn btn-sm btn-ghost" onclick="fetchEntries()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="relay-table-wrap">
+    <table class="relay-table" id="relay-table">
+      <thead>
+        <tr>
+          <th>Time (UTC)</th>
+          <th>Role</th>
+          <th>Bytes</th>
+          <th>Prev hop</th>
+          <th>Next hop / Target</th>
+        </tr>
+      </thead>
+      <tbody id="relay-tbody">
+        {% for e in entries %}
+        <tr>
+          <td class="mono small">{{ e.ts[:19].replace('T',' ') }}</td>
+          <td>
+            {% if e.role == 'relay' %}
+              <span class="badge badge-blue">relay</span>
+            {% else %}
+              <span class="badge badge-warning">exit</span>
+            {% endif %}
+          </td>
+          <td class="mono">{{ e.bytes | filesizeformat }}</td>
+          <td class="mono small">{{ e.prev_hop or '—' }}</td>
+          <td class="mono small">
+            {% if e.role == 'exit' %}
+              {{ e.target or '—' }}
+            {% else %}
+              {{ e.next_hop or '—' }}
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr id="empty-row"><td colspan="5" class="text-muted" style="padding:1.5rem;text-align:center">No relay events recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmtBytes(n) {
+  if (n === undefined || n === null) return '—';
+  if (n < 1024)         return n + ' B';
+  if (n < 1024*1024)    return (n/1024).toFixed(1) + ' KB';
+  if (n < 1024**3)      return (n/1024/1024).toFixed(1) + ' MB';
+  return (n/1024/1024/1024).toFixed(2) + ' GB';
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function fetchStats() {
+  const r = await fetch('/api/relay-stats').catch(()=>null);
+  if (!r || !r.ok) return;
+  const s = await r.json();
+  document.getElementById('rl-relay-events').textContent  = s.relay_events  ?? 0;
+  document.getElementById('rl-exit-events').textContent   = s.exit_events   ?? 0;
+  document.getElementById('rl-bytes-relayed').textContent = fmtBytes(s.bytes_relayed);
+  document.getElementById('rl-bytes-exited').textContent  = fmtBytes(s.bytes_exited);
+  document.getElementById('rl-total-bytes').textContent   = fmtBytes(s.total_bytes);
+}
+
+async function fetchEntries() {
+  const r = await fetch('/api/relay-log?n=100').catch(()=>null);
+  if (!r || !r.ok) return;
+  const data = await r.json();
+  const entries = data.entries || [];
+  const tbody = document.getElementById('relay-tbody');
+
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-muted" style="padding:1.5rem;text-align:center">No relay events recorded yet.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = entries.map(e => {
+    const ts      = (e.ts || '').slice(0, 19).replace('T', ' ');
+    const roleBadge = e.role === 'relay'
+      ? '<span class="badge badge-blue">relay</span>'
+      : '<span class="badge badge-warning">exit</span>';
+    const dest = e.role === 'exit' ? (e.target || '—') : (e.next_hop || '—');
+    return `<tr>
+      <td class="mono small">${escHtml(ts)}</td>
+      <td>${roleBadge}</td>
+      <td class="mono">${fmtBytes(e.bytes)}</td>
+      <td class="mono small">${escHtml(e.prev_hop || '—')}</td>
+      <td class="mono small">${escHtml(dest)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Poll every 5 seconds
+setInterval(() => { fetchStats(); fetchEntries(); }, 5000);
+fetchStats();
+fetchEntries();
+</script>
+{% endblock %}
