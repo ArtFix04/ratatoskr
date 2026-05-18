@@ -56,7 +56,16 @@
 
 <!-- ── Circuit ─────────────────────────────────────────────────── -->
 <div class="card">
-  <p class="card-label">Active Circuit</p>
+  <div class="circuit-header">
+    <p class="card-label" style="margin:0">Active Circuit</p>
+    <div class="circuit-meta">
+      <span class="hop-count-badge" id="hop-count-badge">{{ state.circuit_hops }}-hop</span>
+      <span class="health-dot {% if state.circuit_healthy == True %}health-ok{% elif state.circuit_healthy == False %}health-bad{% else %}health-unknown{% endif %}"
+            id="health-dot"
+            title="{% if state.circuit_healthy == True %}Guard reachable{% elif state.circuit_healthy == False %}Guard unreachable{% else %}Health unknown{% endif %}">
+      </span>
+    </div>
+  </div>
   <div class="circuit-row" id="circuit-row">
     {% if state.circuit_info %}
       {% for part in state.circuit_info.split('  ') %}
@@ -135,6 +144,21 @@
     Firefox: Settings → Network → Manual proxy → SOCKS5 host
     <code>{{ state.socks_host }}</code> port <code>{{ state.socks_port }}</code>
   </p>
+</div>
+
+<!-- ── Tour overlay ────────────────────────────────────────────── -->
+<div class="tour-backdrop" id="tour-backdrop" style="display:none">
+  <div class="tour-card">
+    <p class="tour-title" id="tour-title"></p>
+    <p class="tour-body"  id="tour-body"></p>
+    <div class="tour-footer">
+      <span class="tour-step" id="tour-step"></span>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-ghost btn-sm" onclick="endTour()">Skip</button>
+        <button class="btn btn-primary btn-sm" id="tour-next-btn" onclick="tourNext()">Next</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 {% endblock %}
@@ -245,6 +269,18 @@ ws.onmessage = (e) => {
     }).join('');
   }
 
+  // Health dot
+  const dot = document.getElementById('health-dot');
+  if (dot) {
+    if (s.circuit_healthy === true)       { dot.className = 'health-dot health-ok';      dot.title = 'Guard reachable'; }
+    else if (s.circuit_healthy === false) { dot.className = 'health-dot health-bad';     dot.title = 'Guard unreachable'; }
+    else                                  { dot.className = 'health-dot health-unknown'; dot.title = 'Health unknown'; }
+  }
+
+  // Hop count
+  const hcb = document.getElementById('hop-count-badge');
+  if (hcb && s.circuit_hops) hcb.textContent = `${s.circuit_hops}-hop`;
+
   // Stats
   document.getElementById('stat-bytes-in').textContent  = fmtBytes(s.bytes_in);
   document.getElementById('stat-bytes-out').textContent = fmtBytes(s.bytes_out);
@@ -287,6 +323,61 @@ function fmtBytes(n) {
   if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
   if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
+}
+
+// ── Tour ──────────────────────────────────────────────────────────
+const TOUR_STEPS = [
+  {
+    title: "Welcome to Ratatoskr",
+    body: "This dashboard shows your onion routing node in real time. Your browser traffic is routed through multiple encrypted hops before reaching the internet — no single node ever sees both who you are and what you're visiting.",
+  },
+  {
+    title: "Your Anonymous Circuit",
+    body: "This is your current path through the network. The Guard only knows your IP. The Middle knows neither you nor the destination. The Exit connects to the internet on your behalf. The dot on the right shows whether the circuit is healthy.",
+  },
+  {
+    title: "Live Traffic Stats",
+    body: "Bytes in and out are counted as traffic flows through your circuit. The throughput chart shows the last 60 seconds of activity — one sample per second.",
+  },
+  {
+    title: "Browser Setup",
+    body: "Point your browser's SOCKS5 proxy to the address shown at the bottom of this page. In Firefox: Settings → Network → Manual proxy → SOCKS5. All traffic will then route through your circuit.",
+  },
+];
+
+let tourStep = 0;
+
+function startTour() {
+  tourStep = 0;
+  showTourStep();
+  document.getElementById('tour-backdrop').style.display = 'flex';
+}
+
+function showTourStep() {
+  const step = TOUR_STEPS[tourStep];
+  document.getElementById('tour-title').textContent = step.title;
+  document.getElementById('tour-body').textContent  = step.body;
+  document.getElementById('tour-step').textContent  = `${tourStep + 1} / ${TOUR_STEPS.length}`;
+  document.getElementById('tour-next-btn').textContent = tourStep === TOUR_STEPS.length - 1 ? 'Done' : 'Next';
+}
+
+function tourNext() {
+  if (tourStep < TOUR_STEPS.length - 1) {
+    tourStep++;
+    showTourStep();
+  } else {
+    endTour();
+  }
+}
+
+function endTour() {
+  document.getElementById('tour-backdrop').style.display = 'none';
+  localStorage.setItem('ratatoskr_tour_seen', '1');
+}
+
+// Show tour on first visit
+if (!localStorage.getItem('ratatoskr_tour_seen')) {
+  setTimeout(startTour, 10);
 }
 </script>
 {% endblock %}

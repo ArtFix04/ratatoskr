@@ -534,3 +534,81 @@ code        { background: var(--bg); border: 1px solid var(--border); border-rad
   color: #38bdf8;
   border: 1px solid rgba(56,189,248,.3);
 }
+
+/* ── Circuit header ─────────────────────────────────────────────── */
+.circuit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .25rem;
+}
+.circuit-meta {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.hop-count-badge {
+  font-size: .7rem;
+  font-weight: 700;
+  padding: .15rem .55rem;
+  border-radius: 99px;
+  background: var(--primary-lt);
+  color: var(--primary);
+  letter-spacing: .03em;
+}
+
+/* ── Health dot ─────────────────────────────────────────────────── */
+.health-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: default;
+}
+.health-ok      { background: var(--success); box-shadow: 0 0 6px rgba(22,163,74,.5); }
+.health-bad     { background: var(--danger);  box-shadow: 0 0 6px rgba(220,38,38,.5); }
+.health-unknown { background: #cbd5e1; }
+
+/* ── Tour overlay ───────────────────────────────────────────────── */
+.tour-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+.tour-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 1.75rem;
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.tour-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.tour-body {
+  font-size: .9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.tour-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: .25rem;
+}
+.tour-step {
+  font-size: .8rem;
+  color: var(--text-muted);
+}

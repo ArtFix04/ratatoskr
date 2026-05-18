@@ -51,9 +51,7 @@ PEERS_FILE = DEFAULT_CONFIG_DIR / "peers.json"
 # Update this list when you deploy your own relay nodes.
 # ---------------------------------------------------------------------------
 BOOTSTRAP_PEERS: list[str] = [
-    "200:7720:2ebe:f643:92ff:b0bd:28f7:44d7"
-    # Add Yggdrasil addresses of relay nodes here, e.g.:
-    # "200:1234:5678:abcd::1",
+    "200:7720:2ebe:f643:92ff:b0bd:28f7:44d7",
 ]
 
 

@@ -35,7 +35,9 @@ class AppState:
     # Connection status
     socks_running: bool = False
     relay_running: bool = False
-    circuit_info: Optional[str] = None   # "Guard=200::1 Mid=200::2 Exit=200::3"
+    circuit_info: Optional[str] = None
+    circuit_healthy: Optional[bool] = None  # None=unknown, True=ok, False=unreachable
+    circuit_hops: int = 3
 
     # Demo mode flag — shown as a banner in the UI
     demo_mode: bool = False
@@ -74,6 +76,8 @@ class AppState:
             "socks_running": self.socks_running,
             "relay_running": self.relay_running,
             "circuit_info": self.circuit_info,
+            "circuit_healthy": self.circuit_healthy,
+            "circuit_hops": self.circuit_hops,
             "demo_mode": self.demo_mode,
             "bytes_in": self.bytes_in,
             "bytes_out": self.bytes_out,

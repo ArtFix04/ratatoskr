@@ -42,7 +42,8 @@ from .peers import PeerInfo, PeerRegistry
 
 log = logging.getLogger(__name__)
 
-ROTATION_SECS = 600   # rebuild circuit every 10 minutes
+ROTATION_SECS  = 600  # rebuild circuit every 10 minutes
+PRE_BUILD_SECS = 60   # start building next circuit this many seconds before expiry
 MIN_HOPS = 2          # guard + exit minimum
 
 
@@ -173,18 +174,65 @@ class CircuitManager:
         self.registry = registry
         self.hops = max(MIN_HOPS, hops)
         self._circuit: Optional[Circuit] = None
+        self._next_circuit: Optional[Circuit] = None  # pre-built, ready to swap in
+        self._healthy: Optional[bool] = None
         self._lock = asyncio.Lock()
 
     async def get_circuit(self) -> Circuit:
         async with self._lock:
             if self._circuit is None or self._circuit.is_expired():
-                self._circuit = await self._build()
+                if self._next_circuit is not None:
+                    self._circuit = self._next_circuit
+                    self._next_circuit = None
+                    log.info("Swapped to pre-built circuit: %s", self._circuit.describe())
+                else:
+                    self._circuit = await self._build()
             return self._circuit
 
     async def rotate(self) -> Circuit:
         async with self._lock:
             self._circuit = await self._build()
+            self._next_circuit = None
             return self._circuit
+
+    def start_background_tasks(self, state=None) -> None:
+        """Start health-check and pre-build loops. Call once after the event loop is running."""
+        asyncio.ensure_future(self._health_check_loop(state))
+        asyncio.ensure_future(self._pre_build_loop())
+
+    async def _health_check_loop(self, state=None) -> None:
+        """Every 30 s try a TCP connection to the guard. Update state.circuit_healthy."""
+        while True:
+            await asyncio.sleep(30)
+            circuit = self._circuit
+            if circuit is None:
+                continue
+            try:
+                _, writer = await asyncio.wait_for(
+                    asyncio.open_connection(circuit.guard.addr, circuit.guard.port),
+                    timeout=3.0,
+                )
+                writer.close()
+                self._healthy = True
+            except (OSError, asyncio.TimeoutError):
+                self._healthy = False
+            if state is not None:
+                state.circuit_healthy = self._healthy
+
+    async def _pre_build_loop(self) -> None:
+        """30 s before expiry, build the next circuit in the background."""
+        while True:
+            await asyncio.sleep(30)
+            async with self._lock:
+                if self._circuit is None or self._next_circuit is not None:
+                    continue
+                time_left = ROTATION_SECS - (time.time() - self._circuit.built_at)
+                if time_left <= PRE_BUILD_SECS:
+                    try:
+                        self._next_circuit = await self._build()
+                        log.info("Pre-built next circuit: %s", self._next_circuit.describe())
+                    except Exception as exc:
+                        log.debug("Pre-build failed: %s", exc)
 
     async def open_stream(
         self,

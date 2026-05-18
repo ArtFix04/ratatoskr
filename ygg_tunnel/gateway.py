@@ -469,6 +469,7 @@ class GatewayNode:
         if self.client_mode:
             if self.ygg_addr and len(self.registry) >= 2:
                 circuit_manager = CircuitManager(self.registry, hops=self.circuit_hops)
+                circuit_manager.start_background_tasks(self.state)
                 connect_handler = make_circuit_connect_handler(circuit_manager, self.state)
                 udp_send_fn = circuit_manager.send_udp
                 log.info("Circuit mode: %d-hop onion routing via %d known peers",
@@ -535,6 +536,7 @@ class GatewayNode:
             self.state.socks_port = self.socks_port
             self.state.socks_running = self.client_mode
             self.state.relay_running = self.relay_mode or self.exit_mode
+            self.state.circuit_hops = self.circuit_hops
             modes: list[str] = []
             if self.client_mode:
                 modes.append("client")
