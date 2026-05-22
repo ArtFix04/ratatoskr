@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ratatoskr — Capstone Presentation</title>
+<style>
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; background: #0f1117; color: #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+
+/* ── Slide engine ── */
+.deck { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+.slide {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  padding: 4rem 6rem;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.slide.active { opacity: 1; pointer-events: auto; }
+
+/* layout helpers */
+.slide.top    { justify-content: flex-start; padding-top: 3.5rem; }
+.slide.left   { align-items: flex-start; }
+.slide.top.left { justify-content: flex-start; align-items: flex-start; padding-top: 3.5rem; }
+
+/* ── Slide number ── */
+#slide-counter {
+  position: fixed; bottom: 1.4rem; right: 2rem;
+  font-size: .8rem; color: #475569; font-variant-numeric: tabular-nums;
+  z-index: 100;
+}
+
+/* ── Progress bar ── */
+#progress {
+  position: fixed; bottom: 0; left: 0; height: 3px;
+  background: #6366f1; transition: width 0.3s ease;
+  z-index: 100;
+}
+
+/* ── Typography ── */
+h1 { font-size: 2.8rem; font-weight: 800; line-height: 1.15; letter-spacing: -.02em; }
+h2 { font-size: 1.9rem; font-weight: 700; margin-bottom: 1.4rem; color: #f1f5f9; }
+h3 { font-size: 1.15rem; font-weight: 700; color: #6366f1; margin-bottom: .4rem; }
+p  { font-size: 1.05rem; line-height: 1.65; color: #94a3b8; }
+.lead { font-size: 1.25rem; color: #cbd5e1; line-height: 1.6; }
+.muted { color: #475569; font-size: .9rem; }
+strong { color: #e2e8f0; }
+
+/* ── Accent ── */
+.accent   { color: #818cf8; }
+.accent2  { color: #34d399; }
+.accent3  { color: #f59e0b; }
+.danger   { color: #f87171; }
+
+/* ── Title slide ── */
+.title-slide { background: radial-gradient(ellipse at 30% 40%, #1e1b4b 0%, #0f1117 70%); }
+.title-slide h1 { color: #fff; font-size: 3.4rem; }
+.title-slide .subtitle {
+  font-size: 1.35rem; color: #a5b4fc; margin-top: .7rem; font-weight: 400;
+}
+.title-meta {
+  margin-top: 3rem; display: flex; flex-direction: column; gap: .35rem;
+  font-size: .95rem; color: #64748b;
+}
+.title-meta span { color: #94a3b8; }
+
+/* ── Divider line ── */
+.divider {
+  width: 4rem; height: 3px; background: #6366f1;
+  border-radius: 99px; margin: 1rem 0 1.5rem;
+}
+
+/* ── Cards / columns ── */
+.cols { display: grid; gap: 1.5rem; width: 100%; }
+.cols-2 { grid-template-columns: 1fr 1fr; }
+.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.card {
+  background: #1e2130; border: 1px solid #2d3148;
+  border-radius: 12px; padding: 1.4rem 1.6rem;
+}
+.card h3 { margin-bottom: .5rem; }
+.card p  { font-size: .95rem; }
+
+.card.highlight { border-color: #4f46e5; background: #1a1b2e; }
+.card.green     { border-color: #059669; background: #0a1f17; }
+.card.amber     { border-color: #d97706; background: #1c160a; }
+.card.red       { border-color: #dc2626; background: #1f0a0a; }
+
+/* ── Bullet list ── */
+ul.bullets { list-style: none; display: flex; flex-direction: column; gap: .75rem; width: 100%; }
+ul.bullets li {
+  padding-left: 1.5rem; position: relative;
+  font-size: 1rem; color: #94a3b8; line-height: 1.55;
+}
+ul.bullets li::before {
+  content: ''; position: absolute; left: 0; top: .55em;
+  width: 7px; height: 7px; border-radius: 50%; background: #6366f1;
+}
+ul.bullets li strong { color: #e2e8f0; }
+
+/* ── Diagram: onion ── */
+.onion-wrap {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; margin: 1.5rem 0;
+}
+.onion-layer {
+  border-radius: 99px; display: flex; align-items: center; justify-content: center;
+  font-size: .78rem; font-weight: 700; text-align: center; letter-spacing: .04em;
+  color: #fff; padding: .7rem 1.4rem;
+}
+.layer-g { background: #4f46e5; }
+.layer-m { background: #7c3aed; }
+.layer-e { background: #a21caf; }
+.layer-d { background: #1e2130; border: 1px solid #4b5563; color: #94a3b8; }
+
+.arrow { font-size: 1.3rem; color: #475569; margin: 0 .5rem; }
+
+/* ── Data path diagram ── */
+.path-wrap {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; flex-wrap: nowrap; margin: 1.5rem 0; width: 100%;
+}
+.node {
+  display: flex; flex-direction: column; align-items: center; gap: .3rem;
+}
+.node-box {
+  border-radius: 10px; padding: .6rem 1.1rem;
+  font-size: .82rem; font-weight: 700; color: #fff;
+  text-align: center; min-width: 80px;
+}
+.node-label { font-size: .7rem; color: #475569; }
+.nb-browser { background: #1e40af; }
+.nb-socks   { background: #374151; border: 1px solid #6366f1; }
+.nb-guard   { background: #4f46e5; }
+.nb-middle  { background: #7c3aed; }
+.nb-exit    { background: #a21caf; }
+.nb-net     { background: #065f46; }
+.path-arrow { font-size: 1.2rem; color: #374151; margin: 0 .3rem; flex-shrink: 0; }
+.ygg-region {
+  display: flex; align-items: center;
+  border: 1px dashed #4f46e5; border-radius: 14px;
+  padding: .5rem .8rem; gap: 0;
+  position: relative;
+}
+.ygg-label {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  font-size: .65rem; color: #6366f1; background: #0f1117; padding: 0 .4rem;
+  white-space: nowrap;
+}
+
+/* ── Code block ── */
+pre {
+  background: #1a1f2e; border: 1px solid #2d3148;
+  border-radius: 10px; padding: 1.2rem 1.4rem;
+  font-family: 'SFMono-Regular', 'Consolas', monospace;
+  font-size: .82rem; color: #a5b4fc; line-height: 1.7;
+  width: 100%; overflow-x: auto;
+}
+pre .kw  { color: #f472b6; }
+pre .fn  { color: #34d399; }
+pre .cm  { color: #475569; font-style: italic; }
+pre .st  { color: #fbbf24; }
+
+/* ── Badge ── */
+.badge {
+  display: inline-block; border-radius: 99px; padding: .2rem .7rem;
+  font-size: .75rem; font-weight: 700; letter-spacing: .04em;
+}
+.badge-purple { background: rgba(99,102,241,.2); color: #818cf8; border: 1px solid rgba(99,102,241,.4); }
+.badge-green  { background: rgba(52,211,153,.15); color: #34d399; border: 1px solid rgba(52,211,153,.3); }
+.badge-amber  { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid rgba(245,158,11,.3); }
+.badge-red    { background: rgba(248,113,113,.15); color: #f87171; border: 1px solid rgba(248,113,113,.3); }
+
+/* ── Section header ── */
+.section-marker {
+  font-size: .75rem; font-weight: 700; letter-spacing: .12em;
+  color: #6366f1; text-transform: uppercase; margin-bottom: .5rem;
+}
+
+/* ── Packet table ── */
+.pkt-table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+.pkt-table th {
+  background: #1e2130; color: #6366f1; font-size: .78rem;
+  padding: .6rem .9rem; text-align: center; border: 1px solid #2d3148;
+  letter-spacing: .04em;
+}
+.pkt-table td {
+  background: #161a27; color: #94a3b8; font-size: .78rem;
+  padding: .5rem .9rem; text-align: center; border: 1px solid #2d3148;
+  font-family: monospace;
+}
+
+/* ── Two-col text+visual ── */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; width: 100%; align-items: start; }
+
+/* ── Thank you slide ── */
+.thankyou-slide { background: radial-gradient(ellipse at 70% 60%, #1e1b4b 0%, #0f1117 70%); }
+.big-emoji { font-size: 3rem; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+<!-- ─────────────────────────────────────────────────────────── 1. Title -->
+<div class="slide title-slide active" id="s1">
+  <h1>Ratatoskr</h1>
+  <p class="subtitle">Onion Routing over the Yggdrasil Mesh Network</p>
+  <div class="divider"></div>
+  <div class="title-meta">
+    <span>Artur Khachatryan</span>
+    <span>Bachelor of Science in Computer Science</span>
+    <span>American University of Armenia &nbsp;·&nbsp; 2025–2026</span>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────── 2. Problem -->
+<div class="slide top left" id="s2">
+  <div class="section-marker">Motivation</div>
+  <h2>Two Problems, One System</h2>
+  <div class="divider"></div>
+  <div class="cols cols-2" style="margin-top:.5rem">
+    <div class="card highlight">
+      <h3>Problem 1 — Internet access</h3>
+      <p style="margin-top:.4rem">Yggdrasil is a <strong>private mesh — think separate internet</strong>. Nodes reach each other, but <strong>no path to the regular web</strong>. No built-in bridge. Cannot browse, resolve DNS, or reach any clearnet service.</p>
+    </div>
+    <div class="card" style="border-color:#7c3aed;background:#130f1f">
+      <h3 style="color:#a78bfa">Problem 2 — Privacy</h3>
+      <p style="margin-top:.4rem">Even with access, a single relay that sees both you and your destination breaks anonymity. Tor solves this, but its <strong>relay list is public → detectable and blockable</strong>. Central directory = single chokepoint.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:1rem;border-color:#34d399;background:#051a10;padding:1rem 1.4rem">
+    <p style="color:#34d399;font-weight:600;font-size:.95rem">Ratatoskr solves both at once: exit nodes act as <strong>internet gateways for the Yggdrasil network</strong>, and the onion circuit ensures no single node can link user to destination.</p>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────── 3. Yggdrasil -->
+<div class="slide top left" id="s3">
+  <div class="section-marker">Building Block</div>
+  <h2>Yggdrasil: the Transport</h2>
+  <div class="divider"></div>
+  <div class="cols cols-2">
+    <ul class="bullets">
+      <li>A <strong>mesh network</strong> — peers connect directly, no central server</li>
+      <li>Address <strong>derived from public key</strong> — address = identity, address = math</li>
+      <li>Address is <strong>location-independent</strong> — same address through NAT, ISP changes, travel, country moves</li>
+      <li>Every link <strong>already encrypted</strong> by the substrate — opaque to anyone on the wire</li>
+      <li><strong>Can't fake an address</strong> — network checks the math on every link</li>
+    </ul>
+    <div style="display:flex;flex-direction:column;gap:1rem">
+      <div class="card green">
+        <h3 style="color:#34d399">What this gives us</h3>
+        <p>Stable, unforgeable relay identifiers. No directory authority needed.</p>
+      </div>
+      <div class="card amber">
+        <h3 style="color:#fbbf24">What it costs</h3>
+        <p>Yggdrasil must be installed and connected to at least one peer.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────── 4. Overview -->
+<div class="slide top left" id="s4">
+  <div class="section-marker">System Overview</div>
+  <h2>Ratatoskr in One Slide</h2>
+  <div class="divider"></div>
+  <div class="path-wrap" style="margin-bottom:1.5rem">
+    <div class="node">
+      <div class="node-box nb-browser">Browser</div>
+      <div class="node-label">your app</div>
+    </div>
+    <div class="path-arrow">→</div>
+    <div class="node">
+      <div class="node-box nb-socks">SOCKS5<br>proxy</div>
+      <div class="node-label">localhost</div>
+    </div>
+    <div class="path-arrow">→</div>
+    <div class="ygg-region">
+      <div class="ygg-label">Yggdrasil mesh</div>
+      <div class="node"><div class="node-box nb-guard">Guard</div></div>
+      <div class="path-arrow">→</div>
+      <div class="node"><div class="node-box nb-middle">Middle</div></div>
+      <div class="path-arrow">→</div>
+      <div class="node"><div class="node-box nb-exit">Exit</div></div>
+    </div>
+    <div class="path-arrow">→</div>
+    <div class="node">
+      <div class="node-box nb-net">Internet</div>
+      <div class="node-label">destination</div>
+    </div>
+  </div>
+  <div class="cols cols-3">
+    <div class="card">
+      <h3>Guard</h3>
+      <p>Knows <strong>who you are</strong>, not where you're going. One step only.</p>
+    </div>
+    <div class="card">
+      <h3>Middle</h3>
+      <p>Knows <strong>neither</strong> — just two relay addresses. Nothing else.</p>
+    </div>
+    <div class="card green">
+      <h3 style="color:#34d399">Exit — the bridge</h3>
+      <p><strong>Only node touching the internet.</strong> Knows destination, not origin. Gateway for the whole mesh.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────── 5. Onion crypto -->
+<div class="slide top left" id="s5">
+  <div class="section-marker">Cryptography</div>
+  <h2>How the Onion is Built</h2>
+  <div class="divider"></div>
+  <div class="split">
+    <div>
+      <p class="lead" style="margin-bottom:1rem"><strong>Three nested sealed envelopes.</strong> Built inside out — innermost for exit, then middle, then guard.</p>
+      <ul class="bullets">
+        <li>Each server <strong>opens only its own envelope</strong> — cannot read the others</li>
+        <li><strong>Fresh lock per envelope</strong> — recording traffic now + getting key later still decrypts nothing</li>
+        <li>Tampered envelope is <strong>rejected outright</strong>, not silently forwarded</li>
+        <li>No shared key — every message is its own sealed package</li>
+      </ul>
+    </div>
+    <div>
+      <pre><span class="cm"># innermost: for exit</span>
+L_e = <span class="fn">Seal</span>(exit_pubkey,
+        ONION_EXIT + dst + data)
+
+<span class="cm"># middle wrap</span>
+L_m = <span class="fn">Seal</span>(middle_pubkey,
+        ONION_RELAY + addr(exit) + L_e)
+
+<span class="cm"># outermost: for guard</span>
+L_g = <span class="fn">Seal</span>(guard_pubkey,
+        ONION_RELAY + addr(middle) + L_m)
+
+<span class="cm"># → send L_g to guard</span></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────── 6. Packet format -->
+<div class="slide top left" id="s6">
+  <div class="section-marker">Wire Protocol</div>
+  <h2>Packet Format and Circuit Lifecycle</h2>
+  <div class="divider"></div>
+  <table class="pkt-table" style="margin-bottom:1.8rem">
+    <tr>
+      <th>msg_type</th><th>hop_len</th><th>payload_len</th><th>next_hop</th><th>payload</th>
+    </tr>
+    <tr>
+      <td>1 byte</td><td>2 bytes</td><td>4 bytes</td><td>variable</td><td>variable (encrypted)</td>
+    </tr>
+  </table>
+  <div class="cols cols-3">
+    <div class="card">
+      <h3>Circuit rotation</h3>
+      <p>New path every <strong>10 minutes</strong> — limits what an observer can link together over time.</p>
+    </div>
+    <div class="card">
+      <h3>Pre-build — no interruption</h3>
+      <p>Next path built <strong>60 s early in background</strong>. Old connections finish, new ones use fresh path.</p>
+    </div>
+    <div class="card">
+      <h3>Health check</h3>
+      <p>Probes first server every <strong>30 s</strong>. Goes offline → rebuild immediately, don't wait for failure.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────── 7. Implementation -->
+<div class="slide top left" id="s7">
+  <div class="section-marker">Implementation</div>
+  <h2>Technical Stack</h2>
+  <div class="divider"></div>
+  <div class="cols cols-2">
+    <ul class="bullets" style="gap:1rem">
+      <li><strong>Python + async IO</strong> — single loop, no threads; efficient for many concurrent relay connections</li>
+      <li><strong>Encryption library = NaCl</strong> — same library used in Signal; audited C underneath, not Python</li>
+      <li><strong>Web dashboard</strong> — live updates over WebSocket, no page refresh</li>
+      <li><strong>Any browser works</strong> — standard proxy interface, no modifications needed</li>
+      <li><strong>Gossip peer discovery</strong> — nodes ask known peers who they know; no central directory, ever</li>
+    </ul>
+    <div style="display:flex;flex-direction:column;gap:.9rem">
+      <div class="card" style="padding:1rem 1.2rem">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#e2e8f0;font-weight:600">Node modes</span>
+          <span class="accent3" style="font-size:1rem;font-weight:700">client · relay · exit</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────── 8. Dashboard -->
+<div class="slide top left" id="s8">
+  <div class="section-marker">Web Dashboard</div>
+  <h2>Monitoring and Control</h2>
+  <div class="divider"></div>
+  <div class="cols cols-2">
+    <ul class="bullets">
+      <li><strong>Live circuit</strong> — three hops shown in real time, green/red health dot</li>
+      <li><strong>Throughput chart</strong> — last 60 seconds, updates every second</li>
+      <li><strong>Relay log</strong> — ports + byte counts only, <strong>never the content</strong> — operator transparency</li>
+      <li><strong>Settings</strong> — exit policy, proxy port, identity keys</li>
+      <li><strong>Demo mode</strong> — full circuit on one machine, no Yggdrasil needed</li>
+    </ul>
+    <div class="card" style="background:#0f1320;border-color:#2d3148;font-family:monospace;font-size:.78rem;color:#475569;padding:1.2rem">
+      <div style="color:#6366f1;margin-bottom:.6rem;font-weight:700;font-family:sans-serif;font-size:.8rem">ACTIVE CIRCUIT &nbsp; <span style="background:#1e2130;border-radius:99px;padding:.1rem .5rem">3-hop</span> &nbsp; <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#16a34a;box-shadow:0 0 6px #16a34a;vertical-align:middle"></span></div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <div style="background:#1e2130;border:1px solid #2d3148;border-radius:6px;padding:.4rem .7rem">
+          <div style="color:#6366f1;font-size:.65rem">GUARD</div>
+          <div style="color:#a5b4fc">200:7720::d7</div>
+        </div>
+        <span style="color:#374151">→</span>
+        <div style="background:#1e2130;border:1px solid #2d3148;border-radius:6px;padding:.4rem .7rem">
+          <div style="color:#6366f1;font-size:.65rem">MIDDLE</div>
+          <div style="color:#a5b4fc">200:abcd::1</div>
+        </div>
+        <span style="color:#374151">→</span>
+        <div style="background:#1e2130;border:1px solid #2d3148;border-radius:6px;padding:.4rem .7rem">
+          <div style="color:#6366f1;font-size:.65rem">EXIT</div>
+          <div style="color:#a5b4fc">200:ef12::9</div>
+        </div>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:1.5rem">
+        <div><div style="color:#34d399;font-size:1.1rem;font-weight:700">1.2 MB</div><div>Bytes in</div></div>
+        <div><div style="color:#34d399;font-size:1.1rem;font-weight:700">0.4 MB</div><div>Bytes out</div></div>
+        <div><div style="color:#34d399;font-size:1.1rem;font-weight:700">3</div><div>Connections</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────────────────────────────────── 9. Evaluation -->
+<div class="slide top left" id="s9">
+  <div class="section-marker">Evaluation</div>
+  <h2>Does It Work?</h2>
+  <div class="divider"></div>
+  <div class="cols cols-2">
+    <div>
+      <ul class="bullets">
+        <li><strong>test command</strong> — real circuit → fetch "what's my IP" → returned IP must be exit's, not mine</li>
+        <li><strong>Demo mode</strong> — all three servers on one machine, tested with browser and curl</li>
+        <li>Speed: <strong>slowest link in the chain</strong> — same pattern as Tor, not a Python problem</li>
+      </ul>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.8rem">
+      <div class="card green">
+        <h3 style="color:#34d399">What works</h3>
+        <p>CONNECT + UDP, circuit rotation, health checking, gossip discovery, relay log, full dashboard</p>
+      </div>
+      <div class="card red">
+        <h3 style="color:#f87171">What does not</h3>
+        <p>No traffic shaping. No hidden services. Bootstrap list is a single point of failure. One CPU core.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────── 10. Comparison w/ Tor -->
+<div class="slide top left" id="s10">
+  <div class="section-marker">Context</div>
+  <h2>Ratatoskr vs. Tor</h2>
+  <div class="divider"></div>
+  <div class="cols cols-2">
+    <div class="card green" style="padding:1.4rem">
+      <h3 style="color:#34d399;margin-bottom:.7rem">Same ideas</h3>
+      <ul class="bullets">
+        <li>3-hop circuit, guard / middle / exit roles</li>
+        <li>SOCKS5 interface — existing tools work unchanged</li>
+        <li>Onion encryption, per-layer forward secrecy</li>
+      </ul>
+    </div>
+    <div class="card highlight" style="padding:1.4rem">
+      <h3 style="margin-bottom:.7rem">Key differences</h3>
+      <ul class="bullets">
+        <li><strong>Gateway, not just privacy</strong> — Tor assumes already online; Ratatoskr gives access that wouldn't exist otherwise</li>
+        <li><strong>Stronger encryption</strong> — fresh key per message vs. one key per circuit</li>
+        <li><strong>Relays have no public IP</strong> — Yggdrasil handles link encryption; can't identify or block them</li>
+        <li><strong>No central directory</strong> — can't block the list because there is no list</li>
+      </ul>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:1.2rem;text-align:center">Tor is for people on the internet who want privacy. Ratatoskr is for people on the mesh who want both internet access and privacy.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────────── 11. Future work -->
+<div class="slide top left" id="s11">
+  <div class="section-marker">What's Next</div>
+  <h2>Limitations and Future Work</h2>
+  <div class="divider"></div>
+  <div class="cols cols-3">
+    <div class="card">
+      <h3>Discovery — most pressing</h3>
+      <p><strong>Need one known address to join.</strong> Replace with a signed, replicated peer list so anyone can bootstrap cold.</p>
+    </div>
+    <div class="card">
+      <h3>Traffic shaping</h3>
+      <p><strong>Timing correlation is currently possible.</strong> Cover traffic + fixed packet sizes would close this gap.</p>
+    </div>
+    <div class="card">
+      <h3>Host services inside mesh</h3>
+      <p>Currently outbound only. Reverse circuits would let servers live inside Yggdrasil — cleaner than Tor's .onion.</p>
+    </div>
+    <div class="card">
+      <h3>Performance</h3>
+      <p>Relay core in Go/Rust, same protocol. Client and dashboard stay Python. Removes the bottleneck.</p>
+    </div>
+    <div class="card">
+      <h3>Mobile</h3>
+      <p>Python side is ready. <strong>Blocked on Yggdrasil mobile support</strong>, not on our code.</p>
+    </div>
+    <div class="card">
+      <h3>Formal analysis</h3>
+      <p>A machine-checked proof of the SealedBox-per-layer composition. The construction is small enough to be feasible.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────── 12. Thank you -->
+<div class="slide thankyou-slide" id="s12">
+  <div class="big-emoji">🐿</div>
+  <h1 style="color:#fff;margin-bottom:.6rem">Thank You</h1>
+  <p class="subtitle" style="color:#a5b4fc;font-size:1.2rem;margin-bottom:2.5rem">Questions welcome</p>
+  <div class="cols cols-1" style="max-width:360px">
+    <div class="card" style="text-align:center">
+      <div style="color:#64748b;font-size:.75rem;margin-bottom:.3rem">SOURCE</div>
+      <div style="color:#a5b4fc;font-size:.9rem;font-family:monospace">github.com/ArtFix04/ratatoskr</div>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:2rem;font-size:.85rem">
+    Named after the squirrel who runs messages between the roots and canopy of Yggdrasil in Norse mythology.
+  </p>
+</div>
+
+</div><!-- /deck -->
+
+<div id="slide-counter">1 / 12</div>
+<div id="progress" style="width:8.33%"></div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const counter = document.getElementById('slide-counter');
+const progress = document.getElementById('progress');
+const total = slides.length;
+let current = 0;
+
+function go(n) {
+  slides[current].classList.remove('active');
+  current = Math.max(0, Math.min(total - 1, n));
+  slides[current].classList.add('active');
+  counter.textContent = `${current + 1} / ${total}`;
+  progress.style.width = `${((current + 1) / total) * 100}%`;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ')  go(current + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                     go(current - 1);
+  if (e.key === 'Home') go(0);
+  if (e.key === 'End')  go(total - 1);
+});
+
+// Touch/swipe
+let touchX = 0;
+document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+document.addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(dx) > 40) go(dx < 0 ? current + 1 : current - 1);
+});
+
+// Click left/right halves
+document.getElementById('deck').addEventListener('click', e => {
+  if (e.clientX > window.innerWidth / 2) go(current + 1);
+  else go(current - 1);
+});
+</script>
+
+</body>
+</html>
